@@ -195,10 +195,13 @@
         <!-- TABS -->
         <div class="tabs">
             <button class="tab-btn active" data-tab="interface">
-                ⚙ Atualização da Interface
+                ⚙ Atualização
             </button>
             <button class="tab-btn" data-tab="mods">
-                📦 Gerenciador de Mods
+                📦 Mods
+            </button>
+            <button class="tab-btn" data-tab="github">
+                🔗 GitHub
             </button>
         </div>
 
@@ -245,11 +248,26 @@
             </div>
         </div>
 
+        <!-- TAB 3: GITHUB -->
+        <div id="tab-github" class="tab-content">
+            <div class="card">
+                <h2>Conexão com o GitHub</h2>
+                <p class="desc">Para que o painel salve as mudanças automaticamente no seu site, insira as informações abaixo. Fica salvo apenas no seu navegador.</p>
+                
+                <label>Repositório (Autor/Nome)</label>
+                <input type="text" id="ghRepo" value="MapapagoGabriel-UX/Site-de-Compras-Nindo-Craft" placeholder="ex: MapapagoGabriel-UX/Site-de-Compras-Nindo-Craft" style="margin-bottom: 20px;">
+                
+                <label>Token de Acesso Pessoal (Classic)</label>
+                <input type="text" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" type="password">
+                <p class="desc" style="margin-top: 10px;">Crie um token em <a href="https://github.com/settings/tokens" target="_blank" style="color:var(--accent);">GitHub Developer Settings</a> marcando a permissão "repo".</p>
+            </div>
+        </div>
+
         <!-- GERAR JSON -->
         <div class="footer-action">
-            <button class="btn-generate" id="btnGenerate">Gerar update.json</button>
+            <button class="btn-generate" id="btnGenerate">Salvar Modificações no GitHub</button>
             <br>
-            <a id="downloadLink">⬇ Baixar update.json</a>
+            <a id="downloadLink">⬇ Baixar update.json manualmente</a>
         </div>
     </div>
 
@@ -350,8 +368,8 @@
             }
         });
 
-        // Generate JSON
-        document.getElementById('btnGenerate').addEventListener('click', () => {
+        // Generate JSON & PUSH TO GITHUB
+        document.getElementById('btnGenerate').addEventListener('click', async () => {
             const data = {
                 launcher_version: document.getElementById('launcherVersion').value.trim() || '1.0.0',
                 base_url_mods: document.getElementById('baseUrlMods').value.trim(),
@@ -359,16 +377,82 @@
             };
 
             const jsonStr = JSON.stringify(data, null, 2);
+            
+            // Allow manual download just in case
             const blob = new Blob([jsonStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-
             const a = document.getElementById('downloadLink');
             a.href = url;
             a.download = 'update.json';
             a.style.display = 'inline-block';
 
-            showToast('update.json gerado com sucesso!');
+            // GitHub Push Logic
+            const repo = document.getElementById('ghRepo').value.trim();
+            const token = document.getElementById('ghToken').value.trim();
+
+            if (!token) {
+                showToast('Aviso: Token do GitHub não configurado. Você ainda pode baixar manualmente.');
+                return;
+            }
+
+            const btn = document.getElementById('btnGenerate');
+            const originalText = btn.textContent;
+            btn.textContent = 'Enviando...';
+            btn.style.opacity = '0.7';
+
+            try {
+                const apiBase = `https://api.github.com/repos/${repo}/contents/update.json`;
+                
+                // 1. Obter o SHA do arquivo atual (necessário para atualizar via API)
+                let sha = null;
+                const getRes = await fetch(apiBase, {
+                    headers: { 'Authorization': `token ${token}` }
+                });
+                
+                if (getRes.ok) {
+                    const getJson = await getRes.json();
+                    sha = getJson.sha;
+                }
+
+                // 2. Fazer o PUT para atualizar ou criar
+                const contentEncoded = btoa(unescape(encodeURIComponent(jsonStr)));
+                
+                const putRes = await fetch(apiBase, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Atualizando mods via Painel (Launcher ${data.launcher_version})`,
+                        content: contentEncoded,
+                        sha: sha
+                    })
+                });
+
+                if (putRes.ok) {
+                    showToast('Sucesso! update.json atualizado no GitHub.');
+                } else {
+                    const errData = await putRes.json();
+                    showToast('Erro: ' + (errData.message || 'Falha ao atualizar'));
+                }
+            } catch (err) {
+                showToast('Erro na conexão com o GitHub.');
+                console.error(err);
+            } finally {
+                btn.textContent = originalText;
+                btn.style.opacity = '1';
+            }
         });
+
+        // Load config
+        const savedToken = localStorage.getItem('ghToken');
+        if (savedToken) document.getElementById('ghToken').value = savedToken;
+        const savedRepo = localStorage.getItem('ghRepo');
+        if (savedRepo) document.getElementById('ghRepo').value = savedRepo;
+
+        document.getElementById('ghToken').addEventListener('change', (e) => localStorage.setItem('ghToken', e.target.value));
+        document.getElementById('ghRepo').addEventListener('change', (e) => localStorage.setItem('ghRepo', e.target.value));
 
         // Init
         renderMods();
