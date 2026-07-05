@@ -1,0 +1,19 @@
+{
+  "name": "nindo-kyojin-launcher",
+  "version": "1.0.0",
+  "description": "Launcher de Minecraft 1.12.2 com Forge — Tema Naruto Shippuden",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "author": "Nindo Kyojin",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.3.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.18",
+    "minecraft-launcher-core": "^3.18.2"
+  }
+}
